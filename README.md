@@ -126,7 +126,7 @@ log show --predicate 'subsystem == "*.agent"' --style ndjson --last 1h
 
 ## 与 ai-dev-spec 的关系
 
-- `agent-log` 是**独立仓库**，业务项目用纯 SPM 引用（`.package(url:..., from:)`），最轻、对 AI Agent 最友好。
+- `agent-log-macos` 是**独立仓库**，业务项目用纯 SPM 引用（`.package(url:..., from:)`），最轻、对 AI Agent 最友好。
 - 在脚手架 `ai-dev-spec` 内，以 **git submodule** 形式挂入 `logging-framework/macos/AgentLog`，便于在此编辑模板、改完推回本仓库。
 - 设计方案文档见 [`Docs/macos-agent-logging-design.md`](./Docs/macos-agent-logging-design.md)。
 

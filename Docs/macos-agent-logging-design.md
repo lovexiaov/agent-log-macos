@@ -1,7 +1,7 @@
 # macOS App 面向 Agent 的统一日志框架 · 设计方案
 
 > **落地状态（2026-11-01）**：4 项假设已确认（macOS 12+ / 不记网络 body / 纯本地 / 薄封装 `AgentLog`）。
-> 可运行骨架已生成于独立仓库 `agent-log`（`Package.swift` + `Sources/AgentLog/*` + 测试 + `README.md` 接入规范 + `Example/AppDelegate.swift`）。
+> 可运行骨架已生成于独立仓库 `agent-log-macos`（`Package.swift` + `Sources/AgentLog/*` + 测试 + `README.md` 接入规范 + `Example/AppDelegate.swift`）。
 > 本仓库以 git submodule 形式挂入 `ai-dev-spec/logging-framework/macos/AgentLog`；业务项目用纯 SPM 引用。
 
 > 目标：为多个项目建立**统一、面向 Agent（AI 调试/排障）**的日志框架接入规范。
@@ -249,5 +249,5 @@ AgentLog.export(to: FileManager.default.homeDirectoryForCurrentUser
 
 - **假设已确认**：① 最低 macOS 12+（Pulse 要求）；② 网络不记 query/body；③ 纯本地、无云端依赖；④ 交付形态为薄封装 `AgentLog`。
 - **骨架已生成**：`Package.swift`、`Sources/AgentLog/{Model,Privacy,Export,CrashReporter,AgentLog,AutoInstrumentation}.swift`、`Tests/AgentLogTests`、`README.md`（接入规范）、`Example/AppDelegate.swift`。
-- **仓库关系**：`agent-log` 为独立仓库；业务项目用纯 SPM 引用（`.package(url:..., from:)`），ai-dev-spec 以 git submodule 引用。
+- **仓库关系**：`agent-log-macos` 为独立仓库；业务项目用纯 SPM 引用（`.package(url:..., from:)`），ai-dev-spec 以 git submodule 引用。
 - **已知 TODO（真实集成时核对）**：Pulse/KSCrash 精确版本与 API；`URLSession` 类簇 swizzle 与 delegate-based 响应捕获；发布版默认关闭 UI 埋点。
