@@ -26,8 +26,8 @@
 ```
 
 - **swift-log**：统一日志 API。
-- **Pulse（MIT）**：本地 SQLite 结构化存储 + 自动 URLSession 网络捕获 + 查看器。
-- **KSCrash（MIT）**：崩溃/卡顿采集。
+- **Pulse（MIT）**：本地 SQLite 结构化存储 + 自动 URLSession 网络捕获 + 查看器（**可选增强**，用 `#if canImport(PulseLogHandler)` 守卫，缺失不影响核心能力）。
+- **KSCrash（MIT）**：崩溃/卡顿采集（**可选增强**，用 `#if canImport(KSCrashInstallations)` 守卫；缺失时自动降级为 no-op）。
 - **自动埋点**：AppKit 运行时钩子（Objective-C runtime swizzling），业务零改动。
 
 ## 接入规范（业务项目）
@@ -73,9 +73,9 @@ AgentLog.bootstrap(config: config)
 | 信号 | 机制 | event_type | 默认 |
 |---|---|---|---|
 | 页面浏览 | swizzle `NSViewController.viewDidAppear` | `screen_view` | ON |
-| UI 交互 | swizzle `NSControl.sendAction` | `ui_interaction` | ON |
-| 网络请求 | swizzle `URLSession` task/resume，注入 `trace_id` | `network_request` | ON（**不记 body**） |
-| 崩溃/异常 | `NSSetUncaughtExceptionHandler` + **KSCrash** | `crash` | ON |
+| UI 交互 | swizzle `NSApplication.sendAction(_:to:from:)`（AppKit action 总入口，覆盖菜单/按钮/控件） | `ui_interaction` | ON |
+| 网络请求 | swizzle `URLSession` 的 `dataTask`/`uploadTask`/`downloadTask` 系列，自动注入并串联 `traceparent` | `network_request` | ON（**不记 body**，只记 method/host/path/status/耗时/error） |
+| 崩溃/异常 | **KSCrash 2.x**（`KSCrashConfiguration` + `CrashInstallationConsole`，本地落盘不上报） | `crash` | ON（未接入 KSCrash 时自动降级） |
 | 主线程卡顿 | `CFRunLoopObserver`（>250ms） | `hang` | ON |
 
 ## 日志 Schema（面向 Agent）
@@ -139,9 +139,21 @@ log show --predicate 'subsystem == "*.agent"' --style ndjson --last 1h
 - [ ] `.gitignore` 忽略 `*.agent-log.jsonl`
 - [ ] Agent 排障路径已验证：`AgentLog.export()` 或 `log show --predicate 'subsystem == "*.agent"'`
 
-## 已知 TODO（真实集成时核对）
+## 依赖与版本（重要）
 
-- Pulse / KSCrash 的确切版本号与 SPM product 名。
-- `URLSession` swizzle 在 Swift 桥接下的方法签名、类簇（`__NSCFURLSessionTask`）覆盖；delegate-based 任务的响应捕获需补 KVO/delegate 包装。
-- KSCrash 的 `deadlockWatchdogInterval` / `KSCrashInstallation` 实际 API。
-- 发布版（Release）可默认关闭 UI 埋点以降低开销（配置项已预留）。
+`Package.swift` 中三个外部依赖均为成熟开源方案，**核心能力不依赖它们**：
+
+| 依赖 | 作用 | 守卫 |
+|---|---|---|
+| `swift-log` | 统一日志 API | 硬依赖 |
+| `Pulse` + `PulseLogHandler` | 本地 SQLite 存储 + 查看器（双写增强） | `#if canImport(PulseLogHandler)` |
+| `KSCrash`（`Installations` 产品） | 崩溃/卡顿采集 | `#if canImport(KSCrashInstallations)` |
+
+> ⚠️ **版本号是示例值**：`Package.swift` 里的 `from:` 区间（Pulse 5.x / PulseLogHandler 1.x / KSCrash 2.x）需在真实 Xcode/SPM 环境中 `swift package update` 解析并锁定到可用版本；若某版本 API 有差异，由 `#if canImport` 守卫保证**核心（JSONL 落盘 + 自动埋点 + 导出）始终可编译可运行**，不强依赖 Pulse/KSCrash 的具体符号。
+
+## 已知边界（诚实说明）
+
+- **网络自动埋点的 async/await 路径**：`URLSession.data(for:)` 等 async 入口使用框架内部委托类，不经过公开的 `dataTask(with:delegate:)` 工厂，本 swizzle 不一定能捕获其请求/响应。如需 100% 覆盖，可叠加启用 Pulse 的 `URLSessionProxy` / `URLSession.enableAutomaticNetworkLogging()`——二者互补（Pulse 负责全量网络落盘，本框架负责面向 Agent 的结构化 `network_request` 事件）。
+- **swizzling 通用风险**：运行时钩子可能与其它同样 swizzle `URLSession`/`NSApplication.sendAction` 的库冲突；如遇冲突，可在 `AgentLogConfig.autoInstrumentation` 中关闭对应项。
+- **发布版开销**：自动埋点有少量运行时开销，可在 Release 构建通过配置关闭 `screenView`/`uiInteraction`/`network`（崩溃/卡顿建议保留）。
+- **崩溃报告含栈信息**：可能含敏感符号，导出/分享前请复核。

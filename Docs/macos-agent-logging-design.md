@@ -250,4 +250,18 @@ AgentLog.export(to: FileManager.default.homeDirectoryForCurrentUser
 - **假设已确认**：① 最低 macOS 12+（Pulse 要求）；② 网络不记 query/body；③ 纯本地、无云端依赖；④ 交付形态为薄封装 `AgentLog`。
 - **骨架已生成**：`Package.swift`、`Sources/AgentLog/{Model,Privacy,Export,CrashReporter,AgentLog,AutoInstrumentation}.swift`、`Tests/AgentLogTests`、`README.md`（接入规范）、`Example/AppDelegate.swift`。
 - **仓库关系**：`agent-log-macos` 为独立仓库；业务项目用纯 SPM 引用（`.package(url:..., from:)`），ai-dev-spec 以 git submodule 引用。
-- **已知 TODO（真实集成时核对）**：Pulse/KSCrash 精确版本与 API；`URLSession` 类簇 swizzle 与 delegate-based 响应捕获；发布版默认关闭 UI 埋点。
+
+### 实现状态更新（2026-11-02）：API 已按真实库核实并修正
+
+骨架第二轮补全，所有外部依赖调用均对照当前真实 API 修正（此前为占位/推断）：
+
+| 模块 | 修正点 |
+|---|---|
+| `Package.swift` | 平台锁 macOS 12；新增 `PulseLogHandler` 依赖；KSCrash 产品名改为 `Installations` |
+| `AgentLog.swift` | Pulse 桥接改用 `PulseLogHandler.PersistentLogHandler`（独立包）；`#if canImport(PulseLogHandler)` 守卫，缺失不影响核心；自动埋点事件绕过 `minLevel` 过滤（框架核心价值始终记录） |
+| `AutoInstrumentation.swift` | **UI 交互**：由错误的 `NSControl.sendAction` 改为 `NSApplication.sendAction(_:to:from:)`（AppKit action 总入口）；**网络**：修正 `#selector` 用法，统一以 `task` 为键的 `NetworkTracker`，自动注入并串联 `traceparent`，覆盖 completionHandler 与 delegate 任务（含大部分 async/await delegate 情形） |
+| `CrashReporter.swift` | 按 **KSCrash 2.x** 重写：`KSCrashConfiguration` + `CrashInstallationConsole`（本地落盘不上报）+ `KSCrash.shared.reportStore` 读取历史报告；`#if canImport(KSCrashInstallations)` 守卫，缺失时降级为 no-op |
+
+**剩余诚实边界**：`URLSession.data(for:)` 等 async 入口走框架内部委托类，本 swizzle 不一定捕获，可叠加 Pulse `URLSessionProxy`/`enableAutomaticNetworkLogging()` 互补；swizzling 可能与同类钩子库冲突，可在 `AgentLogConfig.autoInstrumentation` 关闭对应项；版本号区间需在真实 Xcode/SPM 环境解析锁定（见 README「依赖与版本」）。
+
+> ⚠️ 本包为 macOS/AppKit 框架，**需在 macOS + Xcode 环境编译验证**（Linux 无 AppKit/Obj-C runtime）。本仓库当前仅做静态实现与 API 核实，尚未在 macOS 上完成编译。

@@ -40,4 +40,31 @@ final class AgentLogTests: XCTestCase {
         XCTAssertEqual(entries.count, 1)
         XCTAssertEqual(entries.first?.message, "m")
     }
+
+    func testAgentValueObjectRoundTrip() throws {
+        let v: AgentValue = ["user": "marco", "score": 42, "ratio": 0.5, "ok": true,
+                             "nested": ["inner": "x"], "list": [1, 2, 3]]
+        let data = try JSONEncoder().encode(v)
+        let decoded = try JSONDecoder().decode(AgentValue.self, from: data)
+        XCTAssertEqual(decoded, v)
+    }
+
+    func testRedactorMasksUnderscoredKeys() {
+        let r = Redactor()
+        // api_key / access_token 等带分隔符的键也应被掩码
+        let payload = ["api_key": AgentValue.string("sk-12345"),
+                      "access_token": AgentValue.string("tok-abc"),
+                      "username": AgentValue.string("marco")]
+        let masked = r.maskSensitiveKeys(payload)
+        XCTAssertEqual(masked["api_key"], .string("***REDACTED***"))
+        XCTAssertEqual(masked["access_token"], .string("***REDACTED***"))
+        XCTAssertEqual(masked["username"], .string("marco"))
+    }
+
+    func testRedactorRegexCaseInsensitive() {
+        let r = Redactor()
+        let out = r.redact("Authorization: Bearer TOKEN123")
+        XCTAssertFalse(out.contains("TOKEN123"))
+        XCTAssertTrue(out.contains("***REDACTED***"))
+    }
 }
