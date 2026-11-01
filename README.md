@@ -35,7 +35,7 @@
 ### 1. 添加依赖
 ```swift
 // Package.swift（若是 SPM 管理的 App）或 Xcode SPM 依赖
-.package(url: "<agent-log-repo-url>", from: "0.1.0")
+.package(url: "https://github.com/lovexiaov/agent-log-macos.git", from: "0.1.0")
 // target dependencies: ["AgentLog"]
 ```
 
