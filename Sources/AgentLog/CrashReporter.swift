@@ -16,7 +16,8 @@ public enum CrashReporter {
     public static func install(sink: @escaping (AgentLogEntry) -> Void) {
         let config = KSCrashConfiguration()
         // 仅启用生产安全的监测项；watchdog 为主线程卡顿/看门狗监测（2.6.1 用 .watchdog 取代旧 .deadlock）。
-        config.monitors = [.machException, .signal, .nsException, .cppException, .watchdog]
+        // userReported 用于应用主动上报的非致命异常（含 `reportUserException`），缺失会导致此类报告被丢弃。
+        config.monitors = [.machException, .signal, .nsException, .cppException, .watchdog, .userReported]
         config.reportStoreConfiguration.maxReportCount = 20
 
         let installation = CrashInstallationConsole.shared
@@ -33,6 +34,12 @@ public enum CrashReporter {
         }
 
         // 启动时把上次遗留的崩溃报告转成结构化条目
+        CrashReporter.flushPendingReports(sink: sink)
+    }
+
+    /// 读取并转写 `KSCrash.reportStore` 中所有遗留报告进 sink（不重新 install KSCrash）。
+    /// 供 `install` 启动时扫描，以及测试时二次触发。
+    public static func flushPendingReports(sink: @escaping (AgentLogEntry) -> Void) {
         guard let store = KSCrash.shared.reportStore else { return }
         for id in store.reportIDs {
             guard let report = store.report(for: id.int64Value) else { continue }
@@ -46,6 +53,15 @@ public enum CrashReporter {
                 payload: ["report_id": .string("\(id.int64Value)"), "raw": .string(raw)]))
             store.deleteReport(with: id.int64Value)
         }
+    }
+
+    /// 测试辅助：注入一条用户异常报告（不终止进程）并立即转写进 sink，验证崩溃采集链路。
+    public static func simulateAndFlush(sink: @escaping (AgentLogEntry) -> Void) {
+        KSCrash.shared.reportUserException(
+            "TestException", reason: "injected by test",
+            language: "swift", lineOfCode: nil, stackTrace: nil,
+            logAllThreads: false, terminateProgram: false)
+        CrashReporter.flushPendingReports(sink: sink)
     }
 
     /// 把 KSCrash 报告尽力序列化为可读字符串（不依赖具体类型枚举，按运行时值类型兜底）。

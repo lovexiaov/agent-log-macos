@@ -211,6 +211,9 @@ public final class AgentLog {
         appendRaw(entry)
     }
 
+    /// 测试辅助：将已构造好的条目写入主 JSONL 流（`@testable` 可见，供崩溃链路集成测试回写）。
+    internal func append(entry: AgentLogEntry) { appendRaw(entry) }
+
     private func appendRaw(_ entry: AgentLogEntry) {
         fileSink.append(entry.jsonLine)
         // 转发一份到 Pulse（供人在 Pulse Pro / 内嵌控制台查看；非 Agent 主消费源）

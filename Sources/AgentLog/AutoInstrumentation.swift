@@ -280,20 +280,53 @@ final class NetworkTracker {
 
 // MARK: - 主线程卡顿监控（>250ms 记 hang）
 
-/// 独立于 KSCrash deadlock，便于在 Agent 日志中直接观测主线程阻塞。
+/// 主线程卡顿监控：独立后台 watchdog 线程每 100ms 检查主线程心跳。
+///
+/// 为什么不能只用 runloop observer：主线程被业务代码阻塞时 runloop **根本不转**，
+/// observer 不会回调，也就永远测不到真正的卡顿。因此必须由后台线程独立计时：
+/// 主线程每次 runloop 活动刷新心跳，后台线程发现心跳超过阈值未更新即判定 hang。
 final class HangMonitor {
     static let shared = HangMonitor()
     private var observer: CFRunLoopObserver?
-    var startTime: CFAbsoluteTime = 0
+    private var thread: Thread?
+    private var running = false
+    private let lock = NSLock()
+    private var lastPing: CFAbsoluteTime = 0
+    private var reported = false
     let threshold: CFTimeInterval = 0.25
+    var isInstalled: Bool { observer != nil }
 
     func start() {
-        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.allActivities.rawValue, true, 0) { _, activity in
-            if activity.contains(.beforeSources) || activity.contains(.afterWaiting) {
-                HangMonitor.shared.startTime = CFAbsoluteTimeGetCurrent()
-            } else if activity.contains(.beforeWaiting) {
-                let elapsed = CFAbsoluteTimeGetCurrent() - HangMonitor.shared.startTime
-                if elapsed > HangMonitor.shared.threshold {
+        guard observer == nil else { return } // 幂等：避免重复 bootstrap 时多注册
+        running = true
+        lastPing = CFAbsoluteTimeGetCurrent()
+
+        // 主线程 runloop 每次活动刷新心跳（表明主线程仍在响应）
+        let obs = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.allActivities.rawValue, true, 0) { [weak self] _, _ in
+            guard let self = self else { return }
+            self.lock.lock()
+            self.lastPing = CFAbsoluteTimeGetCurrent()
+            self.reported = false
+            self.lock.unlock()
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), obs, .commonModes)
+        observer = obs
+
+        // 后台线程独立检测，不受主线程阻塞影响
+        let t = Thread { [weak self] in
+            guard let self = self else { return }
+            while self.running {
+                Thread.sleep(forTimeInterval: 0.1)
+                let now = CFAbsoluteTimeGetCurrent()
+                self.lock.lock()
+                let elapsed = now - self.lastPing
+                var shouldReport = false
+                if elapsed > self.threshold && !self.reported {
+                    self.reported = true
+                    shouldReport = true
+                }
+                self.lock.unlock()
+                if shouldReport {
                     AgentLog.shared?.recordAuto(
                         eventType: .hang,
                         message: "main thread blocked \(Int(elapsed * 1000))ms",
@@ -301,7 +334,9 @@ final class HangMonitor {
                 }
             }
         }
-        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
-        self.observer = observer
+        t.name = "AgentLog.HangMonitor"
+        t.stackSize = 512 * 1024
+        t.start()
+        thread = t
     }
 }
