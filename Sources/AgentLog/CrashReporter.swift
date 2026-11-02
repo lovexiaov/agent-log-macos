@@ -15,9 +15,8 @@ public enum CrashReporter {
     /// - Parameter sink: 接收结构化条目的回调（通常为 `AgentLog.appendRaw`）。
     public static func install(sink: @escaping (AgentLogEntry) -> Void) {
         let config = KSCrashConfiguration()
-        // 仅启用生产安全的监测项；deadlock 为主线程卡顿/死锁监测。
-        config.monitors = [.machException, .signal, .objcException, .cppException, .deadlock]
-        config.deadlockWatchdogInterval = 2.0
+        // 仅启用生产安全的监测项；watchdog 为主线程卡顿/看门狗监测（2.6.1 用 .watchdog 取代旧 .deadlock）。
+        config.monitors = [.machException, .signal, .nsException, .cppException, .watchdog]
         config.reportStoreConfiguration.maxReportCount = 20
 
         let installation = CrashInstallationConsole.shared
@@ -49,9 +48,10 @@ public enum CrashReporter {
         }
     }
 
-    /// 把 KSCrash 报告尽力序列化为可读字符串（不依赖具体 report.type 枚举，按运行时值类型兜底）。
-    private static func serialize(_ report: KSCrashReport) -> String {
-        let v = report.value
+    /// 把 KSCrash 报告尽力序列化为可读字符串（不依赖具体类型枚举，按运行时值类型兜底）。
+    /// 注意：KSCrash 2.x 的 CrashReport 协议仅有 untypedValue（id?），value 只在具体子类上。
+    private static func serialize(_ report: CrashReport) -> String {
+        let v = report.untypedValue
         if let dict = v as? [String: Any] {
             return (try? JSONSerialization.data(withJSONObject: dict, options: .prettyPrinted))
                 .flatMap { String(data: $0, encoding: .utf8) } ?? "\(dict)"

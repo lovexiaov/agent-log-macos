@@ -87,14 +87,14 @@ enum NetworkInstrumentation {
         swizzleDownloadTaskWithDelegate()
     }
 
-    private static func resolveTraceId(_ request: URLRequest) -> String {
+    fileprivate static func resolveTraceId(_ request: URLRequest) -> String {
         if let existing = request.value(forHTTPHeaderField: "traceparent"), !existing.isEmpty {
             return existing
         }
         return "trace_\(UUID().uuidString)"
     }
 
-    private static func injectTraceId(_ request: inout URLRequest, _ traceId: String) {
+    fileprivate static func injectTraceId(_ request: inout URLRequest, _ traceId: String) {
         if request.value(forHTTPHeaderField: "traceparent") == nil {
             request.setValue(traceId, forHTTPHeaderField: "traceparent")
         }
@@ -136,7 +136,7 @@ enum NetworkInstrumentation {
     private static var swizzledClasses = Set<ObjectIdentifier>()
     private static let delegateLock = NSLock()
 
-    private static func ensureDelegateSwizzled(_ delegate: AnyObject?) {
+    fileprivate static func ensureDelegateSwizzled(_ delegate: AnyObject?) {
         guard let delegate = delegate, let cls: AnyClass = object_getClass(delegate) else { return }
         let key = ObjectIdentifier(cls)
         delegateLock.lock(); defer { delegateLock.unlock() }
@@ -288,7 +288,7 @@ final class HangMonitor {
     let threshold: CFTimeInterval = 0.25
 
     func start() {
-        let observer = CFRunLoopObserverCreateWithHandler(nil, kCFRunLoopAllActivities, true, 0) { _, activity in
+        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.allActivities.rawValue, true, 0) { _, activity in
             if activity.contains(.beforeSources) || activity.contains(.afterWaiting) {
                 HangMonitor.shared.startTime = CFAbsoluteTimeGetCurrent()
             } else if activity.contains(.beforeWaiting) {

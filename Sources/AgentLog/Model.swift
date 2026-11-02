@@ -16,7 +16,7 @@ public enum AgentEventType: String, Codable, Sendable {
 }
 
 /// 结构化值，支持字面量便于 payload 书写：`["code": 404, "msg": "x"]`。
-public enum AgentValue: Codable, Sendable {
+public enum AgentValue: Codable, Equatable, Sendable {
     case string(String)
     case int(Int)
     case double(Double)

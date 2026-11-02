@@ -14,9 +14,10 @@ public struct Redactor: Sendable {
 
     public init(sensitiveKeys: Set<String> = Redactor.defaultSensitiveKeys) {
         self.sensitiveKeys = sensitiveKeys
-        // 匹配 `key=value` / `key: value` 中的敏感值（不区分大小写）
+        // 匹配 `key=value` / `key: value` 中的敏感值，以及 `Authorization: Bearer <token>` 形式。
+        // 关键词后的 `:`/`=` 与随后的 `bearer ` 前缀均可选，最终捕获真正的值（token）。
         self.pattern = try! NSRegularExpression(
-            pattern: #"(?i)((?:password|passwd|pwd|token|authorization|auth|cookie|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|bearer)\s*[:=]\s*['"]?)([^'";,\s]+)"#,
+            pattern: #"(?i)((?:password|passwd|pwd|token|authorization|auth|cookie|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|bearer)(?:\s*[:=]\s*['"]?)?\s*(?:bearer\s+)?)([^'";,\s]+)"#,
             options: [])
     }
 

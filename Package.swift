@@ -4,8 +4,8 @@ import PackageDescription
 let package = Package(
     name: "AgentLog",
     platforms: [
-        // 用户确认：最低 macOS 12+（Pulse 5.x 要求 macOS 12）
-        .macOS(.v12)
+        // Pulse 5.x / PulseLogHandler 5.x 实际要求 macOS 13.0 最低（实测 SPM 解析后报 13.0）。
+        .macOS(.v13)
     ],
     products: [
         .library(name: "AgentLog", targets: ["AgentLog"]),
@@ -17,7 +17,8 @@ let package = Package(
         // 仅当用户确认版本时解析；本项目以 JSONL 文件流为 Agent 主消费源，Pulse 为可选增强。
         .package(url: "https://github.com/kean/Pulse.git", from: "5.0.0"),
         // 将 Pulse 作为 SwiftLog 持久化后端（独立包，提供 PersistentLogHandler）。
-        .package(url: "https://github.com/kean/PulseLogHandler.git", from: "1.0.0"),
+        // 与 Pulse 5.x 对齐：PulseLogHandler 3.0.0 起可用，5.x 对应 Pulse 5.x。
+        .package(url: "https://github.com/kean/PulseLogHandler.git", from: "5.0.0"),
         // 开源崩溃/卡顿采集（MIT）。2.x 提供模块化 SPM 产品。
         .package(url: "https://github.com/kstenerud/KSCrash.git", from: "2.0.0"),
     ],
