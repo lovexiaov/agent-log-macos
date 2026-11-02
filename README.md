@@ -76,31 +76,38 @@ AgentLog.bootstrap(config: config)
 | UI 交互 | swizzle `NSApplication.sendAction(_:to:from:)`（AppKit action 总入口，覆盖菜单/按钮/控件） | `ui_interaction` | ON |
 | 网络请求 | swizzle `URLSession` 的 `dataTask`/`uploadTask`/`downloadTask` 系列，自动注入并串联 `traceparent` | `network_request` | ON（**不记 body**，只记 method/host/path/status/耗时/error） |
 | 崩溃/异常 | **KSCrash 2.x**（`KSCrashConfiguration` + `CrashInstallationConsole`，本地落盘不上报） | `crash` | ON（未接入 KSCrash 时自动降级） |
-| 主线程卡顿 | `CFRunLoopObserver`（>250ms） | `hang` | ON |
+| 主线程卡顿 | 后台 watchdog 线程 + 主线程心跳（>250ms，能捕获 runloop 不转的真实卡顿） | `hang` | ON |
 
 ## 日志 Schema（面向 Agent）
+
+线格式遵循 **Schema v1**（真源：`ai-dev-spec/docs/logging-framework/schema/log-event.schema.json`）。
+Swift 侧属性名是 camelCase，但 `AgentLogEntry` 通过 `CodingKeys` **只在序列化边界**映射为 snake_case；顶层字段集封闭，业务字段一律进 `payload`。
 
 每行一条 JSON（`agent-log.jsonl`）：
 ```json
 {"ts":"2026-11-01T14:03:21Z","level":"info","service":"com.yourapp",
  "subsystem":"com.yourapp.agent","category":"settings","event_type":"ui_interaction",
- "session_id":"...","trace_id":null,"agent_auto":true,
- "message":"ui_interaction NSButton","payload":{"control":"NSButton","identifier":"btn_save"}}
+ "session_id":"...","trace_id":"trace_abc","agent_auto":true,
+ "message":"ui_interaction NSButton","env":"dev",
+ "payload":{"control":"NSButton","identifier":"btn_save"}}
 ```
 
-| 字段 | 说明 | 对齐 Web 端 |
+| 字段 | 说明 | 线格式 |
 |---|---|---|
-| `ts` | ISO8601 时间戳 | 同 |
-| `level` | trace/debug/info/warning/error/critical | 同 |
-| `service` | bundle id | — |
-| `subsystem` | 约定以 `.agent` 结尾，便于过滤 | — |
-| `category` | 业务分类 | `category` |
-| `event_type` | screen_view/ui_interaction/network_request/crash/hang/log | `event` |
-| `session_id` | 一次启动稳定标识 | `sessionId` |
-| `trace_id` | 跨端/跨调用串联（网络自动注入） | `traceId` |
-| `agent_auto` | true=自动埋点 / false=业务手动 | — |
-| `message` | 可读摘要 | `message` |
-| `payload` | 结构化附加信息 | `payload` |
+| `ts` | ISO8601 时间戳 | 必填 |
+| `level` | trace/debug/info/**warn**/error/critical（`warning` 仅读取兼容，禁止写出） | 必填 |
+| `service` | bundle id | 必填 |
+| `subsystem` | 约定以 `.agent` 结尾，便于过滤 | 可选 |
+| `category` | 业务分类 | 可选 |
+| `event_type` | screen_view/ui_interaction/network_request/crash/hang/log | 必填 |
+| `session_id` | 一次启动稳定标识 | 必填 |
+| `trace_id` | 跨端/跨调用串联（网络自动注入） | 可选 |
+| `agent_auto` | true=自动埋点 / false=业务手动 | 必填 |
+| `message` | 可读摘要（已脱敏） | 必填 |
+| `env` | dev / staging / prod | 可选 |
+| `payload` | 结构化附加信息（已脱敏） | 可选 |
+
+> 改动线格式前先看 `Tests/AgentLogTests/SchemaTests.swift`——它断言字段集必须与 schema 一致，改名/私加顶层字段会让测试失败。
 
 ## Agent 如何获取日志
 

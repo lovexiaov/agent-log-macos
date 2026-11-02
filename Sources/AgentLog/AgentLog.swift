@@ -13,6 +13,8 @@ import PulseLogHandler
 public struct AgentLogConfig {
     public var subsystem: String
     public var service: String
+    /// 运行环境（dev / staging / prod），写入 Schema v1 的 `env` 字段。
+    public var env: String
     public var autoInstrumentation: AutoInstrumentationOptions
     public var redactSensitive: Bool
     public var exportDirectory: URL?
@@ -32,12 +34,14 @@ public struct AgentLogConfig {
     }
 
     public init(subsystem: String, service: String? = nil,
+                env: String = AgentLogConfig.defaultEnv,
                 autoInstrumentation: AutoInstrumentationOptions = .all,
                 redactSensitive: Bool = true,
                 exportDirectory: URL? = nil,
                 minLevel: Level = .debug) {
         self.subsystem = subsystem
         self.service = service ?? Bundle.main.bundleIdentifier ?? "app"
+        self.env = env
         self.autoInstrumentation = autoInstrumentation
         self.redactSensitive = redactSensitive
         self.exportDirectory = exportDirectory
@@ -46,6 +50,15 @@ public struct AgentLogConfig {
 
     public static func `default`(subsystem: String) -> AgentLogConfig {
         AgentLogConfig(subsystem: subsystem)
+    }
+
+    /// 依构建配置推导默认环境：DEBUG = dev，否则 prod（可用 init 的 env 覆盖）。
+    public static var defaultEnv: String {
+        #if DEBUG
+        return "dev"
+        #else
+        return "prod"
+        #endif
     }
 }
 
@@ -87,12 +100,14 @@ final class FileSink {
 }
 
 extension Logging.Logger.Level {
+    /// Schema v1 的 level 词表：trace/debug/info/warn/error/critical。
+    /// 注意 Swift 侧枚举叫 `.warning`，线格式必须写 `warn`（`warning` 仅作读取兼容）。
     var agentName: String {
         switch self {
         case .trace: return "trace"
         case .debug: return "debug"
         case .info, .notice: return "info"
-        case .warning: return "warning"
+        case .warning: return "warn"
         case .error: return "error"
         case .critical: return "critical"
         @unknown default: return "info"
@@ -103,7 +118,7 @@ extension Logging.Logger.Level {
         case "trace": self = .trace
         case "debug": self = .debug
         case "info": self = .info
-        case "warning": self = .warning
+        case "warn", "warning": self = .warning   // warning 为历史日志的读取兼容别名
         case "error": self = .error
         case "critical": self = .critical
         default: return nil
@@ -207,6 +222,7 @@ public final class AgentLog {
             level: level.agentName, service: config.service, subsystem: config.subsystem,
             category: category, eventType: eventType.rawValue, sessionId: Session.id,
             traceId: traceId, agentAuto: eventType != .log, message: cleanMessage,
+            env: config.env,
             payload: cleanPayload.isEmpty ? nil : cleanPayload)
         appendRaw(entry)
     }

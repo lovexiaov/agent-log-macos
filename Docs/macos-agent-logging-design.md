@@ -132,24 +132,26 @@
 > 注：Pulse 要求 macOS 12+；若不支持，将 Pulse sink 换成 CocoaLumberjack `DDFileLogger`。
 
 ### 3.3 统一日志 Schema（面向 Agent）
-所有日志（含自动埋点）统一为以下字段，确保跨项目（Web/mac 等）一致：
+所有日志（含自动埋点）统一为 **Schema v1** 线格式，确保跨项目（Web/mac 等）逐字一致：
 ```jsonc
 {
   "ts": "2026-11-01T14:03:21.123Z",   // ISO8601
-  "level": "info",                     // debug|info|warning|error|fault
+  "level": "info",                     // trace|debug|info|warn|error|critical（写入 warn，warning 仅读取兼容）
   "service": "com.org.app",            // 应用标识
   "subsystem": "com.org.app.agent",    // Agent 专用 subsystem，便于过滤
   "category": "network|ui|crash|perf|app",
   "event_type": "network_request|screen_view|ui_interaction|crash|hang|log",
   "session_id": "uuid",                // 一次运行/会话
-  "trace_id": "uuid",                  // 跨调用串联（网络注入）
+  "trace_id": "uuid",                  // 跨调用串联（网络注入），可选
   "agent_auto": true,                  // 是否为框架自动埋点
   "message": "human readable",
+  "env": "dev|staging|prod",           // 运行环境，可选
   "payload": { /* 结构化上下文，已脱敏 */ }
 }
 ```
 - 自动埋点事件统一带 `agent_auto: true` 与明确 `event_type`，Agent 可一键筛选"机器视角时间线"。
-- 与 `ai-dev-spec/packages/observability` 的字段（`event/traceId/userId/timestamp/level/message/service/env`）对齐，保证多端一致。
+- 真源为 `ai-dev-spec/docs/logging-framework/schema/log-event.schema.json`（顶层字段封闭，禁止各端私加）。
+- Swift 属性名为 camelCase，通过 `CodingKeys` 在序列化边界映射为 snake_case；`Tests/AgentLogTests/SchemaTests.swift` 断言字段集与 schema 一致。
 
 ### 3.4 接入规范（Integration Spec）—— 业务零改造
 **Step 1 · 依赖（SPM，一行）**
@@ -213,7 +215,8 @@ AgentLog.export(to: FileManager.default.homeDirectoryForCurrentUser
 - 崩溃报告可能含敏感栈信息，导出/分享前提示复核；可选对称加密落盘。
 
 ### 3.8 与 ai-dev-spec 可观测包的一致性
-- 字段对齐（§3.3）：macOS 端 `event_type/session_id/trace_id` 与 Web 端 `packages/observability` 的 `event/traceId/userId` 同构，Agent 跨端排障用同一套心智模型。
+- 线格式对齐（§3.3）：两端输出**同一套 snake_case 字段**（`ts / level / service / event_type / session_id / trace_id / agent_auto / message / payload`），不存在 `event ↔ event_type` 这类别名，Agent 跨端排障用同一套心智模型。
+- 一致性由测试守住：本仓 `SchemaTests` 与 `packages/observability` 的 `Schema v1` 用例各自断言字段集，任一端私改字段即失败。
 - 脱敏策略、trace 串联、结构化输出三原则贯通，避免"每端一套日志方言"。
 
 ### 3.9 风险与缓解

@@ -87,8 +87,11 @@ extension AgentValue: CustomStringConvertible {
     }
 }
 
-/// 面向 Agent 的统一日志条目 Schema（机器可读，跨端一致）。
-/// 字段对齐 Web 端 packages/observability 的 event/traceId/userId 概念。
+/// 面向 Agent 的统一日志条目 —— Schema v1 线格式（snake_case）。
+///
+/// 规范真源：ai-dev-spec `docs/logging-framework/schema/log-event.schema.json`。
+/// Swift 侧属性名保持 camelCase，**仅在序列化边界**通过 `CodingKeys` 映射为 snake_case；
+/// 顶层字段集封闭，业务自定义字段一律进 `payload`。
 public struct AgentLogEntry: Codable, Sendable {
     public let ts: String
     public let level: String
@@ -100,18 +103,28 @@ public struct AgentLogEntry: Codable, Sendable {
     public let traceId: String?
     public let agentAuto: Bool
     public let message: String
+    public let env: String?
     public let payload: [String: AgentValue]?
+
+    public enum CodingKeys: String, CodingKey {
+        case ts, level, service, subsystem, category, message, payload, env
+        case eventType = "event_type"
+        case sessionId = "session_id"
+        case traceId = "trace_id"
+        case agentAuto = "agent_auto"
+    }
 
     public init(ts: String = ISO8601DateFormatter().string(from: Date()),
                 level: String, service: String, subsystem: String,
                 category: String, eventType: String, sessionId: String,
                 traceId: String? = nil, agentAuto: Bool,
-                message: String, payload: [String: AgentValue]? = nil) {
+                message: String, env: String? = nil,
+                payload: [String: AgentValue]? = nil) {
         self.ts = ts; self.level = level; self.service = service
         self.subsystem = subsystem; self.category = category
         self.eventType = eventType; self.sessionId = sessionId
         self.traceId = traceId; self.agentAuto = agentAuto
-        self.message = message; self.payload = payload
+        self.message = message; self.env = env; self.payload = payload
     }
 
     /// 单行 JSON（JSONL），Agent 可直接按行读取。

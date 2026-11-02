@@ -29,7 +29,8 @@ public enum CrashReporter {
                 subsystem: "agent.crash", category: "crash",
                 eventType: AgentEventType.crash.rawValue,
                 sessionId: Session.id, agentAuto: true,
-                message: "KSCrash install failed: \(error.localizedDescription)"))
+                message: "KSCrash install failed: \(error.localizedDescription)",
+                env: AgentLogConfig.defaultEnv))
             return
         }
 
@@ -50,6 +51,7 @@ public enum CrashReporter {
                 eventType: AgentEventType.crash.rawValue,
                 sessionId: Session.id, agentAuto: true,
                 message: "Crash report available",
+                env: AgentLogConfig.defaultEnv,
                 payload: ["report_id": .string("\(id.int64Value)"), "raw": .string(raw)]))
             store.deleteReport(with: id.int64Value)
         }
