@@ -11,7 +11,7 @@
 | 原则 | 落地 |
 |---|---|
 | 人退居需求/决策，AI Agent 主导排障 | 日志默认开启自动埋点，Agent 无需业务改造即可观测 |
-| 统一、跨端一致 | Schema 字段对齐 `ai-dev-spec/packages/observability`（`event_type`/`trace_id`/`session_id`） |
+| 统一、跨端一致 | 线格式遵循 Schema v1（真源 `ai-dev-spec/docs/logging-framework/schema/`），与 Web 端 `agent-log-web` 逐字相同 |
 | 轻量、本地优先 | 本地 SQLite（Pulse）+ JSONL 文件，无后端依赖 |
 | 隐私兜底 | 日志层强制脱敏，默认不记网络 body |
 

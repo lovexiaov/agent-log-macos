@@ -5,7 +5,7 @@ public enum Session {
     public static let id = UUID().uuidString
 }
 
-/// 自动埋点事件类型。与 ai-dev-spec/packages/observability 的 event 概念对齐。
+/// 自动埋点事件类型。与 Web 端（agent-log-web）的 event_type 概念对齐。
 public enum AgentEventType: String, Codable, Sendable {
     case screenView = "screen_view"
     case uiInteraction = "ui_interaction"

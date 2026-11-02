@@ -216,7 +216,7 @@ AgentLog.export(to: FileManager.default.homeDirectoryForCurrentUser
 
 ### 3.8 与 ai-dev-spec 可观测包的一致性
 - 线格式对齐（§3.3）：两端输出**同一套 snake_case 字段**（`ts / level / service / event_type / session_id / trace_id / agent_auto / message / payload`），不存在 `event ↔ event_type` 这类别名，Agent 跨端排障用同一套心智模型。
-- 一致性由测试守住：本仓 `SchemaTests` 与 `packages/observability` 的 `Schema v1` 用例各自断言字段集，任一端私改字段即失败。
+- 一致性由测试守住：本仓 `SchemaTests` 与 Web 端 `agent-log-web` 的 `Schema v1` 用例各自断言字段集，任一端私改字段即失败。
 - 脱敏策略、trace 串联、结构化输出三原则贯通，避免"每端一套日志方言"。
 
 ### 3.9 风险与缓解
@@ -230,7 +230,7 @@ AgentLog.export(to: FileManager.default.homeDirectoryForCurrentUser
 
 ### 3.10 后续路线
 1. **多项目复用**：将 `AgentLog` 抽为独立 SPM 包 + 本规范文档，作为各项目接入模板。
-2. **跨端统一**：Web/服务端复用同一 Schema（参照 `packages/observability`），实现跨端 trace 串联。
+2. **跨端统一**：Web/服务端复用同一 Schema（参照 `agent-log-web`，宿主路径 `logging-framework/web/Observability`），实现跨端 trace 串联。
 3. **可选云端汇聚**：在本地优先之上，按需叠加 exporter（Sentry/自研），不影响本期纯本地设计。
 4. **Agent 友好增强**：导出时附带"会话摘要/异常聚类"，让 Agent 首屏即见重点。
 
