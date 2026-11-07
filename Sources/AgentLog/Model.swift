@@ -87,6 +87,19 @@ extension AgentValue: CustomStringConvertible {
     }
 }
 
+/// Schema v1.1 span id：16 位小写 hex，与 W3C `traceparent` 的 span-id 同构。
+///
+/// 非法值返回 `nil` —— 调用方**丢弃而不是写出**，坏值永远不会产出违规行。
+public enum SpanIdentifier {
+    public static func normalize(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              trimmed.count == 16 else { return nil }
+        let hexDigits = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
+        guard trimmed.unicodeScalars.allSatisfy({ hexDigits.contains($0) }) else { return nil }
+        return trimmed.lowercased()
+    }
+}
+
 /// 面向 Agent 的统一日志条目 —— Schema v1 线格式（snake_case）。
 ///
 /// 规范真源：ai-dev-spec `docs/logging-framework/schema/log-event.schema.json`。
@@ -101,6 +114,7 @@ public struct AgentLogEntry: Codable, Sendable {
     public let eventType: String
     public let sessionId: String
     public let traceId: String?
+    public let spanId: String?
     public let agentAuto: Bool
     public let message: String
     public let env: String?
@@ -111,19 +125,23 @@ public struct AgentLogEntry: Codable, Sendable {
         case eventType = "event_type"
         case sessionId = "session_id"
         case traceId = "trace_id"
+        case spanId = "span_id"
         case agentAuto = "agent_auto"
     }
 
     public init(ts: String = ISO8601DateFormatter().string(from: Date()),
                 level: String, service: String, subsystem: String,
                 category: String, eventType: String, sessionId: String,
-                traceId: String? = nil, agentAuto: Bool,
+                traceId: String? = nil, spanId: String? = nil, agentAuto: Bool,
                 message: String, env: String? = nil,
                 payload: [String: AgentValue]? = nil) {
         self.ts = ts; self.level = level; self.service = service
         self.subsystem = subsystem; self.category = category
         self.eventType = eventType; self.sessionId = sessionId
-        self.traceId = traceId; self.agentAuto = agentAuto
+        self.traceId = traceId
+        // 序列化边界统一校验：即使直接构造 Entry，也不会写出非法 span_id。
+        self.spanId = SpanIdentifier.normalize(spanId)
+        self.agentAuto = agentAuto
         self.message = message; self.env = env; self.payload = payload
     }
 
