@@ -36,5 +36,13 @@ let package = Package(
             name: "AgentLogTests",
             dependencies: ["AgentLog"]
         ),
+
+        // 可编译的示例 target：直接 `swift build` 即可验证 Example/AppDelegate.swift
+        // 与 AgentLog 公共 API 的契约一致性（macOS AppKit 依赖，仅编译、不运行）。
+        .executableTarget(
+            name: "AgentLogExample",
+            dependencies: ["AgentLog"],
+            path: "Example"
+        ),
     ]
 )
