@@ -21,7 +21,7 @@ public struct AgentLogConfig {
     public var minLevel: Level
 
     public enum Level: Sendable {
-        case trace, debug, info, warning, error
+        case trace, debug, info, warning, error, critical
         public var loggerLevel: Logging.Logger.Level {
             switch self {
             case .trace: return .trace
@@ -29,6 +29,7 @@ public struct AgentLogConfig {
             case .info: return .info
             case .warning: return .warning
             case .error: return .error
+            case .critical: return .critical
             }
         }
     }
@@ -203,6 +204,9 @@ public final class AgentLog {
     }
     public static func error(_ message: String, category: String = "app", traceId: String? = nil, payload: [String: AgentValue]? = nil) {
         shared?.record(level: .error, message, category: category, traceId: traceId, eventType: .log, payload: payload, force: false)
+    }
+    public static func critical(_ message: String, category: String = "app", traceId: String? = nil, payload: [String: AgentValue]? = nil) {
+        shared?.record(level: Logging.Logger.Level.critical, message, category: category, traceId: traceId, eventType: .log, payload: payload, force: false)
     }
 
     // MARK: - 自动埋点内部回调（agent_auto = true）
