@@ -12,9 +12,9 @@ final class SchemaTests: XCTestCase {
     private static let requiredKeys: Set<String> = [
         "ts", "level", "service", "event_type", "session_id", "agent_auto", "message",
     ]
-    /// Schema v1 顶层可选字段
+    /// Schema v1.1 顶层可选字段
     private static let optionalKeys: Set<String> = [
-        "trace_id", "subsystem", "category", "env", "user_id", "payload",
+        "trace_id", "span_id", "subsystem", "category", "env", "user_id", "payload",
     ]
     /// 历史 camelCase 命名，绝不允许回流到线格式
     private static let legacyKeys: Set<String> = [
