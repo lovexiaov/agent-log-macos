@@ -118,6 +118,11 @@ public struct AgentLogEntry: Codable, Sendable {
     public let agentAuto: Bool
     public let message: String
     public let env: String?
+    /// 间接用户标识（Schema v1 的可选 `user_id`；禁止直接 PII）。
+    ///
+    /// 其余五端（Python/Go/Java/Kotlin/Web）早已支持；Swift 侧此前缺失，
+    /// 导致 OTLP 适配器无法产出 `enduser.id`，Schema v1.1 阶段补齐。
+    public let userId: String?
     public let payload: [String: AgentValue]?
 
     public enum CodingKeys: String, CodingKey {
@@ -126,6 +131,7 @@ public struct AgentLogEntry: Codable, Sendable {
         case sessionId = "session_id"
         case traceId = "trace_id"
         case spanId = "span_id"
+        case userId = "user_id"
         case agentAuto = "agent_auto"
     }
 
@@ -133,7 +139,7 @@ public struct AgentLogEntry: Codable, Sendable {
                 level: String, service: String, subsystem: String,
                 category: String, eventType: String, sessionId: String,
                 traceId: String? = nil, spanId: String? = nil, agentAuto: Bool,
-                message: String, env: String? = nil,
+                message: String, env: String? = nil, userId: String? = nil,
                 payload: [String: AgentValue]? = nil) {
         self.ts = ts; self.level = level; self.service = service
         self.subsystem = subsystem; self.category = category
@@ -142,7 +148,9 @@ public struct AgentLogEntry: Codable, Sendable {
         // 序列化边界统一校验：即使直接构造 Entry，也不会写出非法 span_id。
         self.spanId = SpanIdentifier.normalize(spanId)
         self.agentAuto = agentAuto
-        self.message = message; self.env = env; self.payload = payload
+        self.message = message; self.env = env
+        self.userId = userId
+        self.payload = payload
     }
 
     /// 单行 JSON（JSONL），Agent 可直接按行读取。

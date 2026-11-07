@@ -124,6 +124,30 @@ log show --predicate 'subsystem == "*.agent"' --style ndjson --last 1h
 
 **人 + Agent 协作**：Pulse macOS 查看器实时浏览；Agent 读 JSONL 做聚合/异常聚类。
 
+## OTLP 导出
+
+`OtlpMapper` 把 Schema v1 事件映射成 **OTLP/JSON**，可直接 POST 给任何 OTLP/HTTP 后端
+（映射规则真源：`ai-dev-spec/docs/logging-framework/OTLP-MAPPING.md`）。
+只依赖 Foundation + CryptoKit，**不绑定 OTel Swift SDK**（其 logs 仍是 Beta）。
+
+```swift
+// 从当前 JSONL 导出文件直接产出批次（落盘路径见上一节）
+let exporter = AgentLogExporter(
+    sourceFile: URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Logs/com.example.app/agent-log.jsonl"))
+let batch = try exporter.otlpBatch()                               // { logs, traces }
+try OtlpMapper.json(batch).write(to: url, atomically: true, encoding: .utf8)
+
+// 或者只转换内存里的条目
+let entries = try exporter.loadEntries()
+let logs = OtlpMapper.toOtlpLogs(entries)                          // ExportLogsServiceRequest
+let traces = OtlpMapper.toOtlpSpans(entries)                       // ExportTraceServiceRequest
+```
+
+- 每事件 → 1 条 `LogRecord`；`network_request` / `db_query` 额外产出 `SPAN_KIND_CLIENT` span。
+- 6 档 level → severity 1/5/9/13/17/21（`critical` → `FATAL`）。
+- id **确定性派生**（`SHA256`），重试 / 重放不会产生重复链路节点；事件自带合法 `span_id` 优先透传。
+- 时间戳解析为手写实现：`ISO8601DateFormatter` 不接受 `+0800` 与空格分隔，故自行解析并保留纳秒。
+
 ## 隐私与脱敏
 
 - 日志层强制脱敏，不依赖调用方自觉（与 Web 端策略一致）。
