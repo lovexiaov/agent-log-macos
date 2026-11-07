@@ -214,7 +214,7 @@ public final class AgentLog {
     func recordAuto(eventType: AgentEventType, message: String, category: String = "auto",
                     traceId: String? = nil, spanId: String? = nil, userId: String? = nil, payload: [String: AgentValue]? = nil) {
         record(level: .info, message, category: category, traceId: traceId, spanId: spanId,
-               eventType: eventType, payload: payload, force: true)
+               userId: userId, eventType: eventType, payload: payload, force: true)
     }
 
     private func record(level: Logging.Logger.Level, _ message: String, category: String,
@@ -227,8 +227,8 @@ public final class AgentLog {
         let entry = AgentLogEntry(
             level: level.agentName, service: config.service, subsystem: config.subsystem,
             category: category, eventType: eventType.rawValue, sessionId: Session.id,
-            traceId: traceId, spanId: spanId, userId: userId, agentAuto: eventType != .log, message: cleanMessage,
-            env: config.env,
+            traceId: traceId, spanId: spanId, agentAuto: eventType != .log, message: cleanMessage,
+            env: config.env, userId: userId,
             payload: cleanPayload.isEmpty ? nil : cleanPayload)
         appendRaw(entry)
     }

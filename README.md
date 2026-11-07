@@ -131,9 +131,8 @@ log show --predicate 'subsystem == "*.agent"' --style ndjson --last 1h
 只依赖 Foundation + CryptoKit，**不绑定 OTel Swift SDK**（其 logs 仍是 Beta）。
 
 ```swift
-// 从当前 JSONL 导出文件直接产出批次（落盘路径见上一节）
-let exporter = AgentLogExporter(
-    sourceFile: URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Logs/com.example.app/agent-log.jsonl"))
+// 从当前 JSONL 导出文件直接产出批次
+let exporter = AgentLog.exporter()
 let batch = try exporter.otlpBatch()                               // { logs, traces }
 try OtlpMapper.json(batch).write(to: url, atomically: true, encoding: .utf8)
 
