@@ -201,14 +201,12 @@ public enum OtlpMapper {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// 事件的 OTLP `traceId`（32 位 hex），无 `trace_id` 时返回 `nil`。
+    /// 事件的 OTLP `traceId`（32 位 hex），无合法 `trace_id` 时返回 `nil`。
     ///
-    /// 32 位 hex 原样（转小写）使用；其他字符串按 `sha256("agentlog:trace:" + raw)`
-    /// 确定性派生，保证共享同一逻辑 trace 的事件落进同一条 OTLP trace。
+    /// Schema v1.2：`trace_id` 必须是 32 位 hex（大写归一）。非法值不派生、不变形
+    /// —— Entry 构造边界已丢弃，这里的校验是纵深防御。
     public static func traceIDHex(_ entry: AgentLogEntry) -> String? {
-        guard let raw = entry.traceId, !raw.isEmpty else { return nil }
-        let isHex32 = raw.count == 32 && raw.allSatisfy { $0.isHexDigit }
-        return isHex32 ? raw.lowercased() : String(sha256Hex("agentlog:trace:" + raw).prefix(32))
+        TraceIdentifier.normalize(entry.traceId)
     }
 
     /// 事件的 OTLP `spanId`（16 位 hex）。

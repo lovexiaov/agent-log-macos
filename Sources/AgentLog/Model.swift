@@ -1,8 +1,9 @@
 import Foundation
 
 /// 一次会话（= 一次 App 启动）的稳定标识，用于把同一次运行的日志聚合。
+/// 32 位小写 hex —— 让 `trace_id = session_id` 这个最自然的绑定永远满足 Schema v1.2。
 public enum Session {
-    public static let id = UUID().uuidString
+    public static let id = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
 }
 
 /// 自动埋点事件类型。与 Web 端（agent-log-web）的 event_type 概念对齐。
@@ -100,6 +101,26 @@ public enum SpanIdentifier {
     }
 }
 
+/// Schema v1.2 trace id：32 位小写 hex，与 W3C `traceparent` 的 trace-id /
+/// OTLP `traceId` 同构。
+///
+/// 非法值返回 `nil` —— 调用方**丢弃而不是写出**（事件照写），不变形、不派生：
+/// OTLP `traceId` 就是调用方给的那个值，可逆、可搜索。
+public enum TraceIdentifier {
+    /// 生成一个新的合法 trace id（UUID 去横线）。
+    public static func newTraceId() -> String {
+        UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+    }
+
+    public static func normalize(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              trimmed.count == 32 else { return nil }
+        let hexDigits = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
+        guard trimmed.unicodeScalars.allSatisfy({ hexDigits.contains($0) }) else { return nil }
+        return trimmed.lowercased()
+    }
+}
+
 /// 面向 Agent 的统一日志条目 —— Schema v1 线格式（snake_case）。
 ///
 /// 规范真源：ai-dev-spec `docs/logging-framework/schema/log-event.schema.json`。
@@ -144,8 +165,8 @@ public struct AgentLogEntry: Codable, Sendable {
         self.ts = ts; self.level = level; self.service = service
         self.subsystem = subsystem; self.category = category
         self.eventType = eventType; self.sessionId = sessionId
-        self.traceId = traceId
-        // 序列化边界统一校验：即使直接构造 Entry，也不会写出非法 span_id。
+        // 序列化边界统一校验：即使直接构造 Entry，也不会写出非法 trace_id / span_id。
+        self.traceId = TraceIdentifier.normalize(traceId)
         self.spanId = SpanIdentifier.normalize(spanId)
         self.agentAuto = agentAuto
         self.message = message; self.env = env

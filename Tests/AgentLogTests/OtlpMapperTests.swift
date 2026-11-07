@@ -160,17 +160,22 @@ final class OtlpMapperTests: XCTestCase {
 
     // MARK: - id
 
-    func testTraceIdPassthroughAndHashDerivation() {
+    func testTraceIdPassthroughAndDropOfNonHex() {
         XCTAssertEqual(OtlpMapper.traceIDHex(entry(traceId: trace.uppercased())), trace)
-        guard let derived = OtlpMapper.traceIDHex(entry(traceId: "opaque-trace")) else {
-            XCTFail("expected a derived trace id")
-            return
+        // Schema v1.2：非法值不派生、不变形，直接按无 trace 处理
+        for bad in ["opaque-trace", "0123456789abcdef0123456789abcde", "0123456789abcdef0123456789abcdez"] {
+            XCTAssertNil(OtlpMapper.traceIDHex(entry(traceId: bad)), bad)
         }
-        XCTAssertEqual(derived.count, 32)
-        XCTAssertTrue(derived.allSatisfy { $0.isHexDigit })
-        // 确定性：重试必须幂等
-        XCTAssertEqual(OtlpMapper.traceIDHex(entry(traceId: "opaque-trace")), derived)
         XCTAssertNil(OtlpMapper.traceIDHex(entry()))
+    }
+
+    func testTraceIdentifierHelpers() {
+        // newTraceId 产出 Schema v1.2 合法的 32 位小写 hex
+        let fresh = TraceIdentifier.newTraceId()
+        XCTAssertEqual(fresh, TraceIdentifier.normalize(fresh))
+        XCTAssertEqual(TraceIdentifier.normalize("0123456789ABCDEF0123456789ABCDEF"),
+                       "0123456789abcdef0123456789abcdef")
+        XCTAssertNil(TraceIdentifier.normalize("trace-abc"))
     }
 
     func testSpanIdPrefersExplicitValueAndIgnoresMalformedInput() {

@@ -87,16 +87,23 @@ enum NetworkInstrumentation {
         swizzleDownloadTaskWithDelegate()
     }
 
+    /// 从请求中解析 trace id：优先取 W3C `traceparent` 第 2 段（32 位 hex），
+    /// 否则新生成。Schema v1.2 要求 trace id 必须是 32 位 hex。
     fileprivate static func resolveTraceId(_ request: URLRequest) -> String {
-        if let existing = request.value(forHTTPHeaderField: "traceparent"), !existing.isEmpty {
-            return existing
+        if let tp = request.value(forHTTPHeaderField: "traceparent"), !tp.isEmpty {
+            let parts = tp.split(separator: "-")
+            if parts.count == 4, let trace = TraceIdentifier.normalize(String(parts[1])) {
+                return trace
+            }
         }
-        return "trace_\(UUID().uuidString)"
+        return TraceIdentifier.newTraceId()
     }
 
+    /// 把 trace id 以合法的 W3C `traceparent` 形态注入出站请求头。
     fileprivate static func injectTraceId(_ request: inout URLRequest, _ traceId: String) {
         if request.value(forHTTPHeaderField: "traceparent") == nil {
-            request.setValue(traceId, forHTTPHeaderField: "traceparent")
+            let span = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(16)).lowercased()
+            request.setValue("00-\(traceId)-\(span)-01", forHTTPHeaderField: "traceparent")
         }
     }
 
