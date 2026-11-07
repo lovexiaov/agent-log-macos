@@ -75,19 +75,22 @@ final class InstrumentationTests: XCTestCase {
         task.resume()
         wait(for: [exp], timeout: 5)
 
-        // 验证 swizzle 真正注入了 traceparent
+        // 验证 swizzle 真正注入了 traceparent（Schema v1.2 / W3C 合法形态）
         let tp = StubURLProtocol.capturedTraceParent
         XCTAssertNotNil(tp, "网络请求应被注入 traceparent 头")
-        XCTAssertTrue((tp ?? "").hasPrefix("trace_"), "traceparent 格式应为 trace_xxx，实际: \(tp ?? "")")
+        XCTAssertTrue((tp ?? "").hasPrefix("00-"), "traceparent 应为 00-<32hex>-<16hex>-01，实际: \(tp ?? "")")
 
         // 验证收敛成一条 network_request 事件落到 JSONL
         let types = eventTypes()
         XCTAssertTrue(types.contains("network_request"),
                       "网络埋点应记录 network_request，实际 eventTypes: \(types)")
 
-        // traceparent 与事件中记录的 trace_id 应一致
+        // 事件 trace_id 应等于 traceparent 的第 2 段（32 位 hex）
         let netEntry = entries().first { $0.eventType == "network_request" }
-        XCTAssertEqual(netEntry?.traceId, tp, "事件 trace_id 应与注入的 traceparent 一致")
+        let parts = (tp ?? "").split(separator: "-")
+        XCTAssertEqual(parts.count, 4, "traceparent 应有 4 段")
+        XCTAssertEqual(netEntry?.traceId, parts.count == 4 ? String(parts[1]) : nil,
+                       "事件 trace_id 应为 traceparent 的 trace-id 段")
     }
 
     // MARK: - 3. 崩溃埋点

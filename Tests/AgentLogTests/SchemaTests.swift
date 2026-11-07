@@ -37,7 +37,7 @@ final class SchemaTests: XCTestCase {
             category: "auto",
             eventType: "network_request",
             sessionId: "s-1",
-            traceId: "trace_abc",
+            traceId: "0123456789abcdef0123456789abcdef",
             agentAuto: true,
             message: "GET https://api.example.com/orders -> 200",
             env: "prod",
@@ -65,7 +65,7 @@ final class SchemaTests: XCTestCase {
         // 映射后的 snake_case 必须存在且值正确
         XCTAssertEqual(obj["event_type"] as? String, "network_request")
         XCTAssertEqual(obj["session_id"] as? String, "s-1")
-        XCTAssertEqual(obj["trace_id"] as? String, "trace_abc")
+        XCTAssertEqual(obj["trace_id"] as? String, "0123456789abcdef0123456789abcdef")
         XCTAssertEqual(obj["agent_auto"] as? Bool, true)
     }
 
@@ -100,7 +100,7 @@ final class SchemaTests: XCTestCase {
         let decoded = try JSONDecoder().decode(AgentLogEntry.self, from: Data(entry.jsonLine.utf8))
         XCTAssertEqual(decoded.eventType, "network_request")
         XCTAssertEqual(decoded.sessionId, "s-1")
-        XCTAssertEqual(decoded.traceId, "trace_abc")
+        XCTAssertEqual(decoded.traceId, "0123456789abcdef0123456789abcdef")
         XCTAssertEqual(decoded.agentAuto, true)
         XCTAssertEqual(decoded.env, "prod")
         XCTAssertEqual(decoded.payload?["status"], .int(200))
