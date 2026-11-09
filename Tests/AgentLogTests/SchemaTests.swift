@@ -88,8 +88,8 @@ final class SchemaTests: XCTestCase {
         }
         // Swift 枚举叫 .warning，但线格式必须写 warn
         XCTAssertEqual(Logging.Logger.Level.warning.agentName, "warn")
-        // 读取端应兼容历史 warning 别名
-        XCTAssertEqual(Logging.Logger.Level(agentName: "warning"), .warning)
+        // `warning` 不是规范线格式值，读取时返回 nil
+        XCTAssertNil(Logging.Logger.Level(agentName: "warning"))
         XCTAssertEqual(Logging.Logger.Level(agentName: "warn"), .warning)
     }
 

@@ -72,8 +72,8 @@ public enum OtlpMapper {
     private static let statusKeys = ["status_code", "status", "statusCode", "http.status_code"]
     private static let durationKeys = ["duration_ms", "durationMs", "duration"]
 
-    /// 规范键是 `statement`；`sql` / `query` 仅读取侧兼容旧数据（Schema v1.1）。
-    private static let sqlKeys = ["statement", "sql", "query"]
+    /// 规范键是 `statement`；无历史别名。
+    private static let sqlKeys = ["statement"]
     private static let dbSystemKeys = ["db_system", "db.system", "system"]
     private static let dbOperationKeys = ["operation", "op"]
 
@@ -243,11 +243,11 @@ public enum OtlpMapper {
 
     /// agent-log level → `severityText` / `severityNumber`。
     ///
-    /// 读取侧别名 `warning` 归一化为 `warn`；未知 level **降级为 INFO**，
+    /// 未知 level（含非规范的 `warning`）**降级为 INFO**，
     /// 不让一次导出因为脏数据整体失败。
     public static func levelToSeverity(_ level: String) -> Severity {
         let raw = level.lowercased()
-        switch raw == "warning" ? "warn" : raw {
+        switch raw {
         case "trace": return Severity(text: "TRACE", number: 1)
         case "debug": return Severity(text: "DEBUG", number: 5)
         case "warn": return Severity(text: "WARN", number: 13)

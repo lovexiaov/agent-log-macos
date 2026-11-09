@@ -102,7 +102,7 @@ final class FileSink {
 
 extension Logging.Logger.Level {
     /// Schema v1 的 level 词表：trace/debug/info/warn/error/critical。
-    /// 注意 Swift 侧枚举叫 `.warning`，线格式必须写 `warn`（`warning` 仅作读取兼容）。
+    /// 注意 Swift 侧枚举叫 `.warning`，线格式必须写 `warn`。
     var agentName: String {
         switch self {
         case .trace: return "trace"
@@ -119,7 +119,7 @@ extension Logging.Logger.Level {
         case "trace": self = .trace
         case "debug": self = .debug
         case "info": self = .info
-        case "warn", "warning": self = .warning   // warning 为历史日志的读取兼容别名
+        case "warn": self = .warning
         case "error": self = .error
         case "critical": self = .critical
         default: return nil

@@ -109,8 +109,8 @@ final class OtlpMapperTests: XCTestCase {
         }
     }
 
-    func testWarningAliasAndUnknownLevelDegradeToInfo() {
-        XCTAssertEqual(OtlpMapper.levelToSeverity("warning"), .init(text: "WARN", number: 13))
+    func testWarningIsNotCanonicalAndUnknownLevelDegradeToInfo() {
+        XCTAssertEqual(OtlpMapper.levelToSeverity("warning"), .init(text: "INFO", number: 9))
         XCTAssertEqual(OtlpMapper.levelToSeverity("nonsense"), .init(text: "INFO", number: 9))
         XCTAssertEqual(OtlpMapper.levelToSeverity(""), .init(text: "INFO", number: 9))
     }
@@ -306,16 +306,16 @@ final class OtlpMapperTests: XCTestCase {
         XCTAssertEqual(attrText(attrs, "db.system"), "postgresql")
     }
 
-    func testDbSpanAcceptsLegacySqlAndQueryKeysOnRead() throws {
+    func testDbSpanIgnoresLegacySqlAndQueryKeys() throws {
         let legacySql = entry(type: "db_query",
                               payload: ["operation": .string("exec"), "sql": .string("INSERT 1")])
         XCTAssertEqual(text(fields(try XCTUnwrap(OtlpMapper.span(for: legacySql)))["name"]),
-                       "exec INSERT 1")
+                       "exec ")
 
         let legacyQuery = entry(type: "db_query",
                                 payload: ["operation": .string("exec"), "query": .string("INSERT 2")])
         XCTAssertEqual(text(fields(try XCTUnwrap(OtlpMapper.span(for: legacyQuery)))["name"]),
-                       "exec INSERT 2")
+                       "exec ")
     }
 
     func testNonOperationEventsProduceNoSpan() throws {
