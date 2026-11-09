@@ -25,6 +25,7 @@ final class OtlpMapperTests: XCTestCase {
         spanId: String? = nil,
         userId: String? = nil,
         env: String? = "prod",
+        release: String? = nil,
         agentAuto: Bool = false
     ) -> AgentLogEntry {
         AgentLogEntry(
@@ -40,6 +41,7 @@ final class OtlpMapperTests: XCTestCase {
             agentAuto: agentAuto,
             message: message,
             env: env,
+            release: release,
             userId: userId,
             payload: payload)
     }
@@ -374,6 +376,49 @@ final class OtlpMapperTests: XCTestCase {
         XCTAssertEqual(attrText(resource, "service.version"), "2.1.0")
         let names = resource.compactMap { text(fields($0)["key"]) }.filter { $0 == "service.name" }
         XCTAssertEqual(names.count, 1)
+    }
+
+    // MARK: - Schema v1.3: release → service.version
+
+    func testReleaseMapsToServiceVersionResource() throws {
+        let body = fields(try OtlpMapper.toOtlpLogs([entry(release: "1.4.2")]))
+        let resource = items(fields(fields(items(body["resourceLogs"])[0])["resource"] ?? .null)["attributes"])
+        XCTAssertEqual(attrText(resource, "service.version"), "1.4.2")
+        // 属性顺序与其余五端一致：service.name → deployment.environment → service.version → session.id
+        let keys = resource.compactMap { text(fields($0)["key"]) }
+        XCTAssertEqual(keys.first, "service.name")
+        XCTAssertLessThan(keys.firstIndex(of: "deployment.environment") ?? .max,
+                          keys.firstIndex(of: "service.version") ?? .min)
+        XCTAssertLessThan(keys.firstIndex(of: "service.version") ?? .max,
+                          keys.firstIndex(of: "session.id") ?? .min)
+    }
+
+    func testReleaseAbsentLeavesNoServiceVersion() throws {
+        let body = fields(try OtlpMapper.toOtlpLogs([entry()]))
+        let resource = items(fields(fields(items(body["resourceLogs"])[0])["resource"] ?? .null)["attributes"])
+        // 注意：`attrText` 在键缺失时会走 `fields(.null)` 触发 XCTFail，断言缺失只能用 `attr`。
+        XCTAssertNil(attr(resource, "service.version"), "未配置 release 时不得写 service.version")
+    }
+
+    /// 自身 `release` 优先：调用方的同名 extra resource 必须被丢弃，不能覆盖。
+    func testReleaseWinsOverExtraResource() throws {
+        let body = fields(try OtlpMapper.toOtlpLogs(
+            [entry(release: "1.4.2")],
+            extraResource: ["service.version": .string("2.1.0")]))
+        let resource = items(fields(fields(items(body["resourceLogs"])[0])["resource"] ?? .null)["attributes"])
+        XCTAssertEqual(attrText(resource, "service.version"), "1.4.2")
+        let versions = resource.compactMap { text(fields($0)["key"]) }.filter { $0 == "service.version" }
+        XCTAssertEqual(versions.count, 1, "同一 resource 内 service.version 不得重复")
+    }
+
+    /// traces 信号与 logs 共用同一份 resource 映射。
+    func testReleaseAlsoMapsInTracesResource() throws {
+        let op = entry(type: "network_request",
+                       payload: ["method": .string("GET"), "url": .string("http://a/b")],
+                       release: "1.4.2")
+        let body = fields(try OtlpMapper.toOtlpSpans([op]))
+        let resource = items(fields(fields(items(body["resourceSpans"])[0])["resource"] ?? .null)["attributes"])
+        XCTAssertEqual(attrText(resource, "service.version"), "1.4.2")
     }
 
     func testTracesBodySkipsGroupsWithoutOperationEvents() throws {

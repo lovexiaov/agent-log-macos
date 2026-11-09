@@ -87,8 +87,8 @@ Swift 侧属性名是 camelCase，但 `AgentLogEntry` 通过 `CodingKeys` **只�
 ```json
 {"ts":"2026-11-01T14:03:21Z","level":"info","service":"com.yourapp",
  "subsystem":"com.yourapp.agent","category":"settings","event_type":"ui_interaction",
- "session_id":"...","trace_id":"trace_abc","agent_auto":true,
- "message":"ui_interaction NSButton","env":"dev",
+ "session_id":"...","trace_id":"3f9a1c2b7d4e4a5b8c9d0e1f2a3b4c5d","agent_auto":true,
+ "message":"ui_interaction NSButton","env":"dev","release":"1.4.2",
  "payload":{"control":"NSButton","identifier":"btn_save"}}
 ```
 
@@ -105,7 +105,11 @@ Swift 侧属性名是 camelCase，但 `AgentLogEntry` 通过 `CodingKeys` **只�
 | `agent_auto` | true=自动埋点 / false=业务手动 | 必填 |
 | `message` | 可读摘要（已脱敏） | 必填 |
 | `env` | dev / staging / prod | 可选 |
+| `release` | 发布标识（v1.3）：semver / git sha / build number，≤128 字符，由 `AgentLogConfig.release` 统一盖章到每条事件（含自动埋点与崩溃）；OTLP 侧映射为 `service.version` | 可选 |
 | `payload` | 结构化附加信息（已脱敏） | 可选 |
+
+> 崩溃/卡顿事件按 v1.3 标准词表写 `payload`：`exception` / `exception_message` / `stack` / `mechanism`；
+> macOS 额外保留 `raw`（KSCrash 原始报告）兜底，解析失败也不丢事件。
 
 > 改动线格式前先看 `Tests/AgentLogTests/SchemaTests.swift`——它断言字段集必须与 schema 一致，改名/私加顶层字段会让测试失败。
 

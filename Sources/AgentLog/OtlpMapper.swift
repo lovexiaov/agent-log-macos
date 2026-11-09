@@ -45,6 +45,7 @@ public enum OtlpMapper {
 
     // OTel 语义约定键（部分仍为 Experimental，统一收口在这里）。
     private static let serviceName = "service.name"
+    private static let serviceVersion = "service.version"
     private static let deploymentEnv = "deployment.environment"
     private static let sessionIDKey = "session.id"
     private static let enduserID = "enduser.id"
@@ -269,6 +270,10 @@ public enum OtlpMapper {
         ]
         if let env = entry.env, !env.isEmpty {
             attrs.append(keyValue(deploymentEnv, .string(env)))
+        }
+        if let release = entry.release, !release.isEmpty {
+            // Schema v1.3: release -> OTel service.version。
+            attrs.append(keyValue(serviceVersion, .string(release)))
         }
         if !entry.sessionId.isEmpty {
             attrs.append(keyValue(sessionIDKey, .string(entry.sessionId)))

@@ -12,9 +12,9 @@ final class SchemaTests: XCTestCase {
     private static let requiredKeys: Set<String> = [
         "ts", "level", "service", "event_type", "session_id", "agent_auto", "message",
     ]
-    /// Schema v1.1 顶层可选字段
+    /// Schema v1.1 顶层可选字段（v1.3 增补 `release`）
     private static let optionalKeys: Set<String> = [
-        "trace_id", "span_id", "subsystem", "category", "env", "user_id", "payload",
+        "trace_id", "span_id", "subsystem", "category", "env", "release", "user_id", "payload",
     ]
     /// 历史 camelCase 命名，绝不允许回流到线格式
     private static let legacyKeys: Set<String> = [
@@ -41,6 +41,7 @@ final class SchemaTests: XCTestCase {
             agentAuto: true,
             message: "GET https://api.example.com/orders -> 200",
             env: "prod",
+            release: "1.4.2",
             payload: ["status": 200, "duration_ms": 128])
     }
 
@@ -79,6 +80,46 @@ final class SchemaTests: XCTestCase {
         XCTAssertNil(obj["duration_ms"])
     }
 
+    // MARK: - release（Schema v1.3）
+
+    func testReleaseIsWrittenAsTopLevelField() throws {
+        let obj = try jsonObject(fullEntry())
+        XCTAssertEqual(obj["release"] as? String, "1.4.2", "release 必须是一等顶层字段，而不是 payload 子键")
+        let payload = try XCTUnwrap(obj["payload"] as? [String: Any])
+        XCTAssertNil(payload["release"], "release 不得重复写进 payload")
+    }
+
+    func testReleaseOmittedWhenAbsentOrInvalid() throws {
+        // 未配置 → 不写该键（v1.2 行仍然合法）
+        let plain = try jsonObject(AgentLogEntry(
+            level: "info", service: "svc", subsystem: "sub", category: "app",
+            eventType: "log", sessionId: "s-1", agentAuto: false, message: "hi"))
+        XCTAssertNil(plain["release"])
+
+        // 空串 / 超长 → 视同未配置，绝不写出违规行
+        for bad in ["", String(repeating: "v", count: 129)] {
+            let obj = try jsonObject(AgentLogEntry(
+                level: "info", service: "svc", subsystem: "sub", category: "app",
+                eventType: "log", sessionId: "s-1", agentAuto: false, message: "hi",
+                release: bad))
+            XCTAssertNil(obj["release"], "非法 release 应被丢弃: \(bad.prefix(8))…")
+        }
+
+        // 边界值 128 必须保留
+        let edge = String(repeating: "v", count: 128)
+        let obj = try jsonObject(AgentLogEntry(
+            level: "info", service: "svc", subsystem: "sub", category: "app",
+            eventType: "log", sessionId: "s-1", agentAuto: false, message: "hi",
+            release: edge))
+        XCTAssertEqual(obj["release"] as? String, edge)
+    }
+
+    func testReleaseRoundTripsThroughDecoder() throws {
+        let encoded = fullEntry().jsonLine
+        let decoded = try JSONDecoder().decode(AgentLogEntry.self, from: Data(encoded.utf8))
+        XCTAssertEqual(decoded.release, "1.4.2")
+    }
+
     // MARK: - level 词表
 
     func testLevelVocabularyMatchesSchema() {
@@ -111,15 +152,55 @@ final class SchemaTests: XCTestCase {
         let json = """
         {"ts":"2026-11-02T13:37:21.123Z","level":"info","service":"com.yourapp.agent",
          "subsystem":"com.yourapp.agent","category":"auto","event_type":"network_request",
+         "session_id":"8f14e45fea0a4c1b9c3e0d5b2c7a9e11",
+         "trace_id":"3f9a1c2b7d4e4a5b8c9d0e1f2a3b4c5d","span_id":"a1b2c3d4e5f60718",
+         "agent_auto":true,"message":"GET https://api.example.com/orders -> 200 (128ms)",
+         "env":"prod","release":"1.4.2","payload":{"host":"api.example.com","path":"/orders",
+         "method":"GET","status":200,"duration_ms":128}}
+        """
+        let decoded = try JSONDecoder().decode(AgentLogEntry.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.eventType, "network_request")
+        XCTAssertEqual(decoded.sessionId, "8f14e45fea0a4c1b9c3e0d5b2c7a9e11")
+        XCTAssertEqual(decoded.agentAuto, true)
+        XCTAssertEqual(decoded.release, "1.4.2")
+        XCTAssertEqual(decoded.payload?["method"], .string("GET"))
+    }
+
+    /// 规范样例里的 crash 事件（docs/logging-framework/schema/example-crash.json）：
+    /// 读取侧必须能识别标准异常词表，且 `release` 一并解出。
+    func testDecodeCanonicalCrashExample() throws {
+        let json = """
+        {"ts":"2026-11-02T13:38:05.004Z","level":"critical","service":"com.yourapp.agent",
+         "subsystem":"agent.crash","category":"crash","event_type":"crash",
+         "session_id":"8f14e45fea0a4c1b9c3e0d5b2c7a9e11",
+         "trace_id":"3f9a1c2b7d4e4a5b8c9d0e1f2a3b4c5d","span_id":"b2c3d4e5f6071829",
+         "agent_auto":true,"message":"uncaught exception in checkout flow","env":"prod",
+         "release":"1.4.2","payload":{"exception":"java.lang.NullPointerException",
+         "exception_message":"Attempt to invoke virtual method on a null object reference",
+         "stack":"java.lang.NullPointerException: null\\n\\tat Cart.total(Cart.java:42)",
+         "mechanism":"uncaught"}}
+        """
+        let decoded = try JSONDecoder().decode(AgentLogEntry.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.eventType, "crash")
+        XCTAssertEqual(decoded.level, "critical")
+        XCTAssertEqual(decoded.release, "1.4.2")
+        XCTAssertEqual(decoded.payload?["exception"], .string("java.lang.NullPointerException"))
+        XCTAssertEqual(decoded.payload?["mechanism"], .string("uncaught"))
+    }
+
+    /// 向后兼容：v1.2 及更早的行（无 `release`、非法 trace_id）必须仍能被读取。
+    func testDecodeLegacyLineWithoutRelease() throws {
+        let json = """
+        {"ts":"2026-11-02T13:37:21.123Z","level":"info","service":"com.yourapp.agent",
+         "subsystem":"com.yourapp.agent","category":"auto","event_type":"network_request",
          "session_id":"8f14e45f-ea0a-4c1b-9c3e-0d5b2c7a9e11","trace_id":"trace_3f9a1c2b7d4e",
          "agent_auto":true,"message":"GET https://api.example.com/orders -> 200 (128ms)",
          "env":"prod","payload":{"host":"api.example.com","path":"/orders","method":"GET",
          "status":200,"duration_ms":128}}
         """
         let decoded = try JSONDecoder().decode(AgentLogEntry.self, from: Data(json.utf8))
+        XCTAssertNil(decoded.release, "历史行没有 release，读取侧不得造值")
         XCTAssertEqual(decoded.eventType, "network_request")
-        XCTAssertEqual(decoded.sessionId, "8f14e45f-ea0a-4c1b-9c3e-0d5b2c7a9e11")
-        XCTAssertEqual(decoded.agentAuto, true)
         XCTAssertEqual(decoded.payload?["method"], .string("GET"))
     }
 }

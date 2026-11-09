@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/); this project adheres to
 Schema v1 (frozen 2026-11-02).
 
+## [Unreleased]
+
+Schema v1.3（向后兼容增量）。
+
+### Added
+
+- 顶层可选 `release`：`AgentLogConfig(release: "1.4.2")` / `config.release` 配置后由
+  `AgentLog` 统一盖章到**每条**事件（含自动埋点与崩溃事件），不校验格式、
+  仅限非空且 ≤128 字符；未配置则不写该键。
+- OTLP：`release` 映射为 resource 的 `service.version`。
+
+### Changed（异常 payload 标准词表）
+
+- 未捕获异常 / 崩溃事件统一按标准词表写 `payload`：`exception`（类型名）、
+  `exception_message`（原始消息）、`stack`（单字符串）、`mechanism`
+  （`uncaught` / `handled` / `reported`）。`CrashReporter` 从 KSCrash 报告 **best-effort** 解析 `exception` / `exception_message` / `stack` / `mechanism`（`raw` 原样保留兜底）；宿主主动上报记 `reported`，其余记 `uncaught`；解析失败不抛错、不丢事件。
+- OTLP 适配器读取侧继续兼容历史键（`message` / `stacktrace` / `trace`），老日志
+  映射行为不变。
+
+### Docs
+
+- 与 `ai-dev-spec` 的 Schema v1.3 / `INTERFACE.md` §4「异常与版本」对齐；
+  说明框架只产出数据，不做上报 / APM 集成 / 崩溃落盘。
+
 ## [1.2.0] - 2026-11-07
 
 ### Changed（Schema v1.2，破坏性）

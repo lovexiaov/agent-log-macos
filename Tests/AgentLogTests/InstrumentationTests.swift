@@ -97,9 +97,9 @@ final class InstrumentationTests: XCTestCase {
 
     func testCrashReportRecorded() {
         // 注入一条用户异常报告（不终止进程），并立即转写进 AgentLog 流
-        CrashReporter.simulateAndFlush { entry in
+        CrashReporter.simulateAndFlush(sink: { entry in
             AgentLog.shared?.append(entry: entry)
-        }
+        }, release: "1.4.2")
 
         let types = eventTypes()
         XCTAssertTrue(types.contains("crash"),
@@ -107,6 +107,11 @@ final class InstrumentationTests: XCTestCase {
         let crashEntry = entries().first { $0.eventType == "crash" }
         XCTAssertEqual(crashEntry?.agentAuto, true, "崩溃事件 agentAuto 应为 true")
         XCTAssertEqual(crashEntry?.level, "critical", "崩溃事件 level 应为 critical")
+        XCTAssertEqual(crashEntry?.release, "1.4.2", "崩溃事件也必须盖上 release")
+        XCTAssertEqual(crashEntry?.payload?["mechanism"], .string("reported"),
+                       "用户上报的崩溃应记 reported")
+        XCTAssertNotNil(crashEntry?.payload?["exception"], "应能从 KSCrash 报告解析出 exception")
+        XCTAssertNotNil(crashEntry?.payload?["raw"], "raw 始终兜底保留")
     }
 
     // MARK: - 4. 主线程卡顿埋点

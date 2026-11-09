@@ -139,6 +139,12 @@ public struct AgentLogEntry: Codable, Sendable {
     public let agentAuto: Bool
     public let message: String
     public let env: String?
+    /// 发布标识（Schema v1.3 的可选 `release`）：semver / git sha / build number。
+    ///
+    /// 由 `AgentLogConfig.release` 在写入路径统一盖章；不校验格式（版本来源多样），
+    /// 仅限非空且 ≤128 字符，超限视同未配置——丢弃而不是写出违规行。
+    /// OTLP 适配器把它映射到 resource 的 `service.version`。
+    public let release: String?
     /// 间接用户标识（Schema v1 的可选 `user_id`；禁止直接 PII）。
     ///
     /// 其余五端（Python/Go/Java/Kotlin/Web）早已支持；Swift 侧此前缺失，
@@ -147,7 +153,7 @@ public struct AgentLogEntry: Codable, Sendable {
     public let payload: [String: AgentValue]?
 
     public enum CodingKeys: String, CodingKey {
-        case ts, level, service, subsystem, category, message, payload, env
+        case ts, level, service, subsystem, category, message, payload, env, release
         case eventType = "event_type"
         case sessionId = "session_id"
         case traceId = "trace_id"
@@ -160,7 +166,8 @@ public struct AgentLogEntry: Codable, Sendable {
                 level: String, service: String, subsystem: String,
                 category: String, eventType: String, sessionId: String,
                 traceId: String? = nil, spanId: String? = nil, agentAuto: Bool,
-                message: String, env: String? = nil, userId: String? = nil,
+                message: String, env: String? = nil, release: String? = nil,
+                userId: String? = nil,
                 payload: [String: AgentValue]? = nil) {
         self.ts = ts; self.level = level; self.service = service
         self.subsystem = subsystem; self.category = category
@@ -170,8 +177,18 @@ public struct AgentLogEntry: Codable, Sendable {
         self.spanId = SpanIdentifier.normalize(spanId)
         self.agentAuto = agentAuto
         self.message = message; self.env = env
+        self.release = AgentLogEntry.normalizeRelease(release)
         self.userId = userId
         self.payload = payload
+    }
+
+    /// Schema v1.3 `release` 的边界校验：不校验格式，只要求非空且 ≤128 字符。
+    ///
+    /// 与其余五端同一口径：空串 / 超长一律视同「未配置」，序列化时**不写该键**，
+    /// 绝不让坏值把整行变成 schema 违规数据。
+    static func normalizeRelease(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty, raw.count <= 128 else { return nil }
+        return raw
     }
 
     /// 单行 JSON（JSONL），Agent 可直接按行读取。

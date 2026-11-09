@@ -11,6 +11,9 @@ import AgentLog
 // JSONL 落盘到 ~/Library/Logs/<bundleIdentifier>/agent-log.jsonl，可被 Agent 按行消费。
 var config = AgentLogConfig(subsystem: "com.yourapp.agent.example")
 config.minLevel = .trace // 让 6 档级别全部可见（含 critical）
+// Schema v1.3：release 由配置统一盖章到每条事件（含自动埋点与崩溃），
+// 导出 OTLP 时映射为 resource 的 service.version；不配置则不写该键。
+config.release = "1.4.2"
 AgentLog.bootstrap(config: config)
 
 // 1) 各档级别（补齐契约 6 档：trace / debug / info / warning / error / critical）

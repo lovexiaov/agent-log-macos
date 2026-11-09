@@ -15,6 +15,11 @@ public struct AgentLogConfig {
     public var service: String
     /// 运行环境（dev / staging / prod），写入 Schema v1 的 `env` 字段。
     public var env: String
+    /// 发布标识（Schema v1.3 的 `release`）：semver / git sha / build number 均可。
+    ///
+    /// 不配置则线格式里不写该键；配置后**每条**事件（含自动埋点与崩溃）都会盖章，
+    /// OTLP 侧体现为 resource 的 `service.version`。默认 `nil`，按需开启。
+    public var release: String?
     public var autoInstrumentation: AutoInstrumentationOptions
     public var redactSensitive: Bool
     public var exportDirectory: URL?
@@ -36,6 +41,7 @@ public struct AgentLogConfig {
 
     public init(subsystem: String, service: String? = nil,
                 env: String = AgentLogConfig.defaultEnv,
+                release: String? = nil,
                 autoInstrumentation: AutoInstrumentationOptions = .all,
                 redactSensitive: Bool = true,
                 exportDirectory: URL? = nil,
@@ -43,6 +49,7 @@ public struct AgentLogConfig {
         self.subsystem = subsystem
         self.service = service ?? Bundle.main.bundleIdentifier ?? "app"
         self.env = env
+        self.release = release
         self.autoInstrumentation = autoInstrumentation
         self.redactSensitive = redactSensitive
         self.exportDirectory = exportDirectory
@@ -180,7 +187,9 @@ public final class AgentLog {
 
     private func installAuto() {
         if config.autoInstrumentation.contains(.crash) {
-            CrashReporter.install { [weak self] entry in self?.appendRaw(entry) }
+            // 崩溃事件的 Entry 由 CrashReporter 直接构造，不走 record()，故 release 需显式下传。
+            CrashReporter.install(sink: { [weak self] entry in self?.appendRaw(entry) },
+                                  release: config.release)
         }
         if config.autoInstrumentation.contains(.hang) {
             HangMonitor.shared.start()
@@ -228,7 +237,7 @@ public final class AgentLog {
             level: level.agentName, service: config.service, subsystem: config.subsystem,
             category: category, eventType: eventType.rawValue, sessionId: Session.id,
             traceId: traceId, spanId: spanId, agentAuto: eventType != .log, message: cleanMessage,
-            env: config.env, userId: userId,
+            env: config.env, release: config.release, userId: userId,
             payload: cleanPayload.isEmpty ? nil : cleanPayload)
         appendRaw(entry)
     }
