@@ -449,7 +449,7 @@ final class OtlpMapperTests: XCTestCase {
     }
 
     func testSdkConstantsMatchSpec() {
-        XCTAssertEqual(OtlpMapper.sdkVersion, "1.3.0")
+        XCTAssertEqual(OtlpMapper.sdkVersion, "1.4.0")
         XCTAssertEqual(OtlpMapper.spanKindClient, 3)
         XCTAssertEqual(OtlpMapper.statusCodeError, 2)
     }

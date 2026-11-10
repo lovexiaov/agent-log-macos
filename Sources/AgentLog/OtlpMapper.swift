@@ -24,7 +24,7 @@ import Foundation
 /// ```
 public enum OtlpMapper {
     /// 与项目版本保持一致（测试断言）。
-    public static let sdkVersion = "1.3.0"
+    public static let sdkVersion = "1.4.0"
 
     /// OTel `SpanKind.SPAN_KIND_CLIENT`。
     public static let spanKindClient = 3
@@ -341,7 +341,8 @@ public enum OtlpMapper {
         }
         let payload = entry.payload ?? [:]
         attrs.append(contentsOf: keyValues(payload, prefix: "payload."))
-        if entry.eventType == "crash" || entry.eventType == "hang" {
+        // Schema v1.4：ai_error 复用 v1.3 异常词表，与 crash/hang 同样映射为 exception.*
+        if entry.eventType == "crash" || entry.eventType == "hang" || entry.eventType == "ai_error" {
             attrs.append(contentsOf: exceptionAttributes(payload))
         }
         return attrs

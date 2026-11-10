@@ -6,7 +6,11 @@ public enum Session {
     public static let id = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
 }
 
-/// 自动埋点事件类型。与 Web 端（agent-log-web）的 event_type 概念对齐。
+/// 事件类型。与 Web 端（agent-log-web）的 event_type 概念对齐。
+///
+/// 前 5 个是自动埋点；`log` 是业务手动日志；Schema v1.4 起另含 6 个 AI 交互事件
+/// （`aiRequestInitiated` 等），它们由业务代码通过 `AgentLog.ai*` 显式记录
+/// （`agent_auto=false`），与 INTERFACE.md §4.4 / 其余五端逐字对齐。
 public enum AgentEventType: String, Codable, Sendable {
     case screenView = "screen_view"
     case uiInteraction = "ui_interaction"
@@ -14,6 +18,13 @@ public enum AgentEventType: String, Codable, Sendable {
     case crash
     case hang
     case log
+
+    case aiRequestInitiated = "ai_request_initiated"
+    case aiResponseReceived = "ai_response_received"
+    case aiToolCallInitiated = "ai_tool_call_initiated"
+    case aiToolCallCompleted = "ai_tool_call_completed"
+    case aiGuardrailTriggered = "ai_guardrail_triggered"
+    case aiError = "ai_error"
 }
 
 /// 结构化值，支持字面量便于 payload 书写：`["code": 404, "msg": "x"]`。

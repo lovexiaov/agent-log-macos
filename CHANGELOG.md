@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/); this project adheres to
 Schema v1 (frozen 2026-11-02).
 
+## [1.4.0] - 2026-11-11
+
+Schema v1.4（向后兼容增量）：六端统一的 AI 交互事件。不改变任何既有字段语义与必填约束。
+
+### Added
+
+- 新增 `AiEvents.swift`：`AgentLog.aiRequest` / `aiResponse` / `aiToolCall` /
+  `aiToolResult` / `aiGuardrail` / `aiError` 静态便捷方法，经 `recordAI(...)` 盖章；
+  `extra` 可追加标准词表或业务键。`AgentEventType` 增补 6 个 AI 值。
+- 6 个标准 `event_type`：`ai_request_initiated` / `ai_response_received` /
+  `ai_tool_call_initiated` / `ai_tool_call_completed` / `ai_guardrail_triggered` / `ai_error`；
+  可用可选 `request_id` 串联同一轮对话（框架不强制生成）。
+
+### Changed
+
+- `record(...)` 改为显式接收 `agentAuto`，不再由 `eventType != .log` 推断
+  （自动埋点仍为 `true`，业务手动日志与 AI 事件均为 `false`）。
+- OTLP：AI 事件只产 LogRecord，**不产 Span**；可挂 `spanId` 供下游组 span。
+  `ai_error` 复用 v1.3 异常词表，映射为 `exception.*` 属性。
+
 ## [1.3.0] - 2026-11-10
 
 Schema v1.3（向后兼容增量）。

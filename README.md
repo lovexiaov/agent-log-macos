@@ -113,6 +113,27 @@ Swift 侧属性名是 camelCase，但 `AgentLogEntry` 通过 `CodingKeys` **只�
 
 > 改动线格式前先看 `Tests/AgentLogTests/SchemaTests.swift`——它断言字段集必须与 schema 一致，改名/私加顶层字段会让测试失败。
 
+## AI 交互事件（Schema v1.4）
+
+六端共用同一份 AI 事件契约（`INTERFACE.md` §4.4）：6 个标准 `event_type`、snake_case
+payload 词表、`agent_auto=false`（业务显式埋点，框架不 hook 任何 LLM SDK）。
+
+```swift
+AgentLog.aiRequest(model: "gpt-4o", promptText: "总结这段对话",
+                   extra: ["request_id": "req_001", "provider": "openai"])
+AgentLog.aiResponse(model: "gpt-4o", totalTokens: 530,
+                    extra: ["request_id": "req_001", "prompt_tokens": 320])
+AgentLog.aiError(errorType: "RateLimitError", message: "429 too many requests",
+                 extra: ["request_id": "req_001", "stack": "frame1"])
+```
+
+`AiEvents.swift` 以 `AgentLog` 的静态扩展提供 6 个方法（`aiRequest` / `aiResponse` /
+`aiToolCall` / `aiToolResult` / `aiGuardrail` / `aiError`），level 分别为
+info / info / info / info / warn / error。`extra` 用于追加标准词表或业务键。
+`request_id` 用于串联「请求→响应→工具→错误」同一轮对话，框架不强制生成、不校验。
+`ai_error` 复用 v1.3 异常词表。OTLP 导出只产 LogRecord，**不产 Span**；若下游需要
+组 span，请显式传 `spanId`。
+
 ## Agent 如何获取日志
 
 **主路径（推荐）**：读取 JSONL 文件

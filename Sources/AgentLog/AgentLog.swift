@@ -200,22 +200,22 @@ public final class AgentLog {
     // MARK: - 业务手动日志（agent_auto = false）
 
     public static func trace(_ message: String, category: String = "app", traceId: String? = nil, spanId: String? = nil, userId: String? = nil, payload: [String: AgentValue]? = nil) {
-        shared?.record(level: .trace, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false)
+        shared?.record(level: .trace, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false, agentAuto: false)
     }
     public static func debug(_ message: String, category: String = "app", traceId: String? = nil, spanId: String? = nil, userId: String? = nil, payload: [String: AgentValue]? = nil) {
-        shared?.record(level: .debug, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false)
+        shared?.record(level: .debug, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false, agentAuto: false)
     }
     public static func info(_ message: String, category: String = "app", traceId: String? = nil, spanId: String? = nil, userId: String? = nil, payload: [String: AgentValue]? = nil) {
-        shared?.record(level: .info, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false)
+        shared?.record(level: .info, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false, agentAuto: false)
     }
     public static func warning(_ message: String, category: String = "app", traceId: String? = nil, spanId: String? = nil, userId: String? = nil, payload: [String: AgentValue]? = nil) {
-        shared?.record(level: .warning, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false)
+        shared?.record(level: .warning, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false, agentAuto: false)
     }
     public static func error(_ message: String, category: String = "app", traceId: String? = nil, spanId: String? = nil, userId: String? = nil, payload: [String: AgentValue]? = nil) {
-        shared?.record(level: .error, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false)
+        shared?.record(level: .error, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false, agentAuto: false)
     }
     public static func critical(_ message: String, category: String = "app", traceId: String? = nil, spanId: String? = nil, userId: String? = nil, payload: [String: AgentValue]? = nil) {
-        shared?.record(level: Logging.Logger.Level.critical, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false)
+        shared?.record(level: Logging.Logger.Level.critical, message, category: category, traceId: traceId, spanId: spanId, userId: userId, eventType: .log, payload: payload, force: false, agentAuto: false)
     }
 
     // MARK: - 自动埋点内部回调（agent_auto = true）
@@ -223,12 +223,21 @@ public final class AgentLog {
     func recordAuto(eventType: AgentEventType, message: String, category: String = "auto",
                     traceId: String? = nil, spanId: String? = nil, userId: String? = nil, payload: [String: AgentValue]? = nil) {
         record(level: .info, message, category: category, traceId: traceId, spanId: spanId,
-               userId: userId, eventType: eventType, payload: payload, force: true)
+               userId: userId, eventType: eventType, payload: payload, force: true, agentAuto: true)
+    }
+
+    /// Schema v1.4：AI 交互事件的统一写入入口。业务**显式埋点**（`agent_auto=false`），
+    /// 遵守 `minLevel`（force=false），payload 由 `AiEvents` 按标准词表组装。
+    func recordAI(level: Logging.Logger.Level, _ message: String, eventType: AgentEventType,
+                  payload: [String: AgentValue], traceId: String? = nil, spanId: String? = nil,
+                  userId: String? = nil) {
+        record(level: level, message, category: "ai", traceId: traceId, spanId: spanId,
+               userId: userId, eventType: eventType, payload: payload, force: false, agentAuto: false)
     }
 
     private func record(level: Logging.Logger.Level, _ message: String, category: String,
                         traceId: String?, spanId: String?, userId: String?, eventType: AgentEventType,
-                        payload: [String: AgentValue]?, force: Bool) {
+                        payload: [String: AgentValue]?, force: Bool, agentAuto: Bool) {
         // 自动埋点事件（框架核心价值）始终记录；业务手动日志遵守 minLevel。
         guard force || level >= config.minLevel.loggerLevel else { return }
         let cleanMessage = config.redactSensitive ? redactor.redact(message) : message
@@ -236,7 +245,7 @@ public final class AgentLog {
         let entry = AgentLogEntry(
             level: level.agentName, service: config.service, subsystem: config.subsystem,
             category: category, eventType: eventType.rawValue, sessionId: Session.id,
-            traceId: traceId, spanId: spanId, agentAuto: eventType != .log, message: cleanMessage,
+            traceId: traceId, spanId: spanId, agentAuto: agentAuto, message: cleanMessage,
             env: config.env, release: config.release, userId: userId,
             payload: cleanPayload.isEmpty ? nil : cleanPayload)
         appendRaw(entry)
