@@ -24,7 +24,7 @@ import Foundation
 /// ```
 public enum OtlpMapper {
     /// 与项目版本保持一致（测试断言）。
-    public static let sdkVersion = "1.0.0"
+    public static let sdkVersion = "1.3.0"
 
     /// OTel `SpanKind.SPAN_KIND_CLIENT`。
     public static let spanKindClient = 3
